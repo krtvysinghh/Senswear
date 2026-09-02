@@ -59,6 +59,7 @@ class SenswearDatabase(context: Context) : SQLiteOpenHelper(context, DATABASE_NA
             )
             """.trimIndent()
         )
+        db.execSQL("CREATE INDEX idx_activity_epoch_source ON daily_activity(epoch_day, source)")
 
         db.execSQL(
             """
