@@ -1,7 +1,7 @@
 # Senswear
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/krtvysinghh/Senswear/main/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" width="100" height="100" alt="Senswear Logo" />
+  <img src="docs/assets/senswear_logo.svg" width="120" height="120" alt="Senswear Logo" />
 </p>
 
 <p align="center">
