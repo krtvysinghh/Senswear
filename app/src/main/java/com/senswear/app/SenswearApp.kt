@@ -1,7 +1,6 @@
 package com.senswear.app
 
 import android.app.Application
-import com.senswear.app.core.ble.FakeQore2Connector
 import com.senswear.app.core.ble.Qore2Connector
 import com.senswear.app.core.ble.WearableConnector
 import com.senswear.app.core.data.local.SenswearDatabase
@@ -53,13 +52,10 @@ class SenswearApp : Application() {
         database = SenswearDatabase.getInstance(this)
         healthConnectManager = HealthConnectManager(this)
 
-        // Use FakeQore2Connector for debug / testing environments to guarantee rich data simulation,
-        // while Qore2Connector is available for direct physical hardware connection
-        wearableConnector = if (BuildConfig.DEBUG) {
-            FakeQore2Connector()
-        } else {
-            Qore2Connector(this)
-        }
+        // Strict Production Truth Rule:
+        // Always bind directly to the real Pebble Qore 2 Bluetooth LE GATT connector.
+        // The app starts DISCONNECTED until physical hardware is actively paired and streaming.
+        wearableConnector = Qore2Connector(this)
 
         activityRepository = ActivityRepository(database)
         healthRepository = HealthRepository(database)

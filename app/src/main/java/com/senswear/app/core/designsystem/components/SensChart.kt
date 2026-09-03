@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -23,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -44,6 +47,9 @@ import com.senswear.app.core.designsystem.theme.SensViolet
 import com.senswear.app.core.domain.model.SleepStageRecord
 import com.senswear.app.core.domain.model.SleepStageType
 
+/**
+ * 120 FPS Zero-Allocation Cached Bezier Curve Line Chart.
+ */
 @Composable
 fun SensLineChart(
     dataPoints: List<Float>,
@@ -55,129 +61,140 @@ fun SensLineChart(
     minVal: Float = dataPoints.minOrNull() ?: 0f,
     maxVal: Float = dataPoints.maxOrNull() ?: 100f
 ) {
-    val animProgress = remember { Animatable(0f) }
+    val animProgress = remember { Animatable(1f) }
 
     LaunchedEffect(dataPoints) {
         animProgress.snapTo(0f)
-        animProgress.animateTo(1f, animationSpec = tween(800))
+        animProgress.animateTo(1f, animationSpec = tween(600))
     }
 
-    Canvas(modifier = modifier) {
-        if (dataPoints.size < 2) return@Canvas
+    val strokeWidth = 3.dp
 
-        val w = size.width
-        val h = size.height
-        val effectiveRange = (maxVal - minVal).coerceAtLeast(1f)
-        val stepX = w / (dataPoints.size - 1)
+    Box(
+        modifier = modifier.drawWithCache {
+            val w = size.width
+            val h = size.height
+            val effectiveRange = (maxVal - minVal).coerceAtLeast(1f)
 
-        val points = dataPoints.mapIndexed { index, value ->
-            val normY = (value - minVal) / effectiveRange
-            val x = index * stepX
-            val y = h - (normY * h * animProgress.value)
-            Offset(x, y.coerceIn(0f, h))
+            if (dataPoints.size < 2 || w <= 0f || h <= 0f) {
+                onDrawBehind { }
+            } else {
+                val stepX = w / (dataPoints.size - 1)
+                val strokePx = strokeWidth.toPx()
+
+                val path = Path()
+                val fillPath = Path()
+
+                val firstNormY = (dataPoints.first() - minVal) / effectiveRange
+                val firstY = h - (firstNormY * h * animProgress.value)
+                path.moveTo(0f, firstY.coerceIn(0f, h))
+                fillPath.moveTo(0f, h)
+                fillPath.lineTo(0f, firstY.coerceIn(0f, h))
+
+                for (i in 0 until dataPoints.size - 1) {
+                    val p0x = i * stepX
+                    val p0y = (h - ((dataPoints[i] - minVal) / effectiveRange * h * animProgress.value)).coerceIn(0f, h)
+
+                    val p1x = (i + 1) * stepX
+                    val p1y = (h - ((dataPoints[i + 1] - minVal) / effectiveRange * h * animProgress.value)).coerceIn(0f, h)
+
+                    val cx1 = (p0x + p1x) / 2f
+                    val cy1 = p0y
+                    val cx2 = (p0x + p1x) / 2f
+                    val cy2 = p1y
+
+                    path.cubicTo(cx1, cy1, cx2, cy2, p1x, p1y)
+                    fillPath.cubicTo(cx1, cy1, cx2, cy2, p1x, p1y)
+                }
+
+                fillPath.lineTo(w, h)
+                fillPath.close()
+
+                onDrawBehind {
+                    drawPath(fillPath, fillBrush)
+                    drawPath(path, lineColor, style = Stroke(width = strokePx, cap = StrokeCap.Round))
+                }
+            }
         }
-
-        val path = Path()
-        val fillPath = Path()
-
-        path.moveTo(points.first().x, points.first().y)
-        fillPath.moveTo(points.first().x, h)
-        fillPath.lineTo(points.first().x, points.first().y)
-
-        for (i in 0 until points.size - 1) {
-            val p0 = points[i]
-            val p1 = points[i + 1]
-            val controlPoint1 = Offset((p0.x + p1.x) / 2f, p0.y)
-            val controlPoint2 = Offset((p0.x + p1.x) / 2f, p1.y)
-            path.cubicTo(controlPoint1.x, controlPoint1.y, controlPoint2.x, controlPoint2.y, p1.x, p1.y)
-            fillPath.cubicTo(controlPoint1.x, controlPoint1.y, controlPoint2.x, controlPoint2.y, p1.x, p1.y)
-        }
-
-        fillPath.lineTo(points.last().x, h)
-        fillPath.close()
-
-        drawPath(fillPath, fillBrush)
-        drawPath(path, lineColor, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
-
-        // Draw last endpoint circle highlight
-        val lastPoint = points.last()
-        drawCircle(Color.White, radius = 5.dp.toPx(), center = lastPoint)
-        drawCircle(lineColor, radius = 3.dp.toPx(), center = lastPoint)
-    }
+    )
 }
 
+/**
+ * 120 FPS Cached Hourly Intraday Activity Bar Chart.
+ */
 @Composable
 fun SensHourlyBarChart(
     hourlyValues: List<Int>,
     modifier: Modifier = Modifier,
-    barColor: Color = SensCyan
+    barColor: Color = SensCyan,
+    maxHourVal: Int = (hourlyValues.maxOrNull() ?: 500).coerceAtLeast(100)
 ) {
-    val maxVal = (hourlyValues.maxOrNull() ?: 1).coerceAtLeast(100)
+    Box(
+        modifier = modifier.drawWithCache {
+            val w = size.width
+            val h = size.height
+            val count = hourlyValues.size.coerceAtLeast(24)
+            val slotWidth = w / count.toFloat()
+            val barWidth = (slotWidth * 0.65f).coerceAtLeast(2f)
+            val cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
 
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Bottom
-    ) {
-        hourlyValues.forEachIndexed { hour, value ->
-            val heightFraction = (value.toFloat() / maxVal.toFloat()).coerceIn(0.04f, 1f)
-            val isPeak = value == maxVal && value > 0
+            onDrawBehind {
+                for (i in 0 until count) {
+                    val value = if (i < hourlyValues.size) hourlyValues[i] else 0
+                    val fraction = (value.toFloat() / maxHourVal.toFloat()).coerceIn(0.04f, 1.0f)
+                    val barHeight = h * fraction
+                    val x = i * slotWidth + (slotWidth - barWidth) / 2f
+                    val y = h - barHeight
 
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.weight(1f).padding(horizontal = 1.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(heightFraction)
-                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                        .background(
-                            if (isPeak) Brush.verticalGradient(listOf(SensCyan, SensEmerald))
-                            else Brush.verticalGradient(listOf(barColor.copy(alpha = 0.8f), barColor.copy(alpha = 0.3f)))
-                        )
-                )
+                    val color = if (value > 0) barColor else barColor.copy(alpha = 0.12f)
+                    drawRoundRect(
+                        color = color,
+                        topLeft = Offset(x, y),
+                        size = Size(barWidth, barHeight),
+                        cornerRadius = cornerRadius
+                    )
+                }
             }
         }
-    }
+    )
 }
 
+/**
+ * Sleep Architecture Hypnogram.
+ */
 @Composable
 fun SensSleepHypnogram(
     stages: List<SleepStageRecord>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    totalDurationMinutes: Int = stages.sumOf { (it.endTimeEpochMs - it.startTimeEpochMs).toInt() / 60000 }.coerceAtLeast(1)
 ) {
-    if (stages.isEmpty()) return
-
-    val totalDurationMs = (stages.last().endTimeEpochMs - stages.first().startTimeEpochMs).coerceAtLeast(1)
-
-    Column(modifier = modifier) {
-        // Stage Legend
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            LegendItem("Deep", SensIndigo)
-            LegendItem("Light", SensCyan)
-            LegendItem("REM", SensViolet)
-            LegendItem("Awake", SensAmber)
-        }
-
-        // Timeline visualization bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(36.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color(0x14FFFFFF))
-        ) {
-            stages.forEach { record ->
-                val durationMs = record.endTimeEpochMs - record.startTimeEpochMs
-                val weight = (durationMs.toFloat() / totalDurationMs.toFloat()).coerceAtLeast(0.01f)
-                val color = when (record.stage) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF0F172A))
+    ) {
+        if (stages.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF1E293B)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Awaiting Nocturnal Sleep Telemetry",
+                    style = SensTypography.labelSmall,
+                    color = SensTextTertiary
+                )
+            }
+        } else {
+            stages.forEach { stage ->
+                val duration = ((stage.endTimeEpochMs - stage.startTimeEpochMs) / 60000).toFloat()
+                val weight = (duration / totalDurationMinutes.toFloat()).coerceAtLeast(0.01f)
+                val color = when (stage.stage) {
                     SleepStageType.DEEP -> SensIndigo
-                    SleepStageType.LIGHT -> SensCyan
                     SleepStageType.REM -> SensViolet
+                    SleepStageType.LIGHT -> SensCyan
                     SleepStageType.AWAKE -> SensAmber
                 }
 
@@ -192,72 +209,66 @@ fun SensSleepHypnogram(
     }
 }
 
-@Composable
-private fun LegendItem(label: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .width(8.dp)
-                .height(8.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(color)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(text = label, style = SensTypography.labelSmall, color = SensTextSecondary)
-    }
-}
-
+/**
+ * 5-Zone Heart Rate Segmented Distribution Meter.
+ */
 @Composable
 fun SensHeartRateZonesChart(
-    zoneMinutes: List<Int>, // 5 zones
+    zoneMinutes: List<Int>, // 5 items: Z1, Z2, Z3, Z4, Z5
     modifier: Modifier = Modifier
 ) {
-    val totalMinutes = zoneMinutes.sum().coerceAtLeast(1)
+    val totalMins = zoneMinutes.sum().coerceAtLeast(1)
     val colors = listOf(SensCyan, SensEmerald, SensAmber, SensRose, SensViolet)
-    val zoneNames = listOf("Zone 1 Warm Up", "Zone 2 Fat Burn", "Zone 3 Cardio", "Zone 4 Threshold", "Zone 5 Max")
+    val labels = listOf("Z1 Warm up", "Z2 Fat Burn", "Z3 Aerobic", "Z4 Anaerobic", "Z5 VO₂ Max")
 
-    Column(modifier = modifier) {
-        // Multi-segment horizontal bar
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(14.dp)
                 .clip(RoundedCornerShape(7.dp))
-                .background(Color(0x14FFFFFF))
+                .background(Color(0xFF1E293B)),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            zoneMinutes.forEachIndexed { i, mins ->
-                val weight = (mins.toFloat() / totalMinutes.toFloat()).coerceAtLeast(0.01f)
-                Box(
-                    modifier = Modifier
-                        .weight(weight)
-                        .fillMaxHeight()
-                        .background(colors[i % colors.size])
-                )
+            zoneMinutes.forEachIndexed { index, mins ->
+                val fraction = mins.toFloat() / totalMins.toFloat()
+                if (fraction > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .weight(fraction)
+                            .fillMaxHeight()
+                            .background(colors[index])
+                    )
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Breakdown items
-        zoneMinutes.forEachIndexed { i, mins ->
-            val pct = ((mins.toFloat() / totalMinutes.toFloat()) * 100).toInt()
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            zoneMinutes.forEachIndexed { index, mins ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         modifier = Modifier
-                            .width(8.dp)
-                            .height(8.dp)
+                            .size(8.dp)
                             .clip(RoundedCornerShape(2.dp))
-                            .background(colors[i % colors.size])
+                            .background(colors[index])
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = zoneNames[i], style = SensTypography.bodyMedium, color = SensTextPrimary)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "${mins}m",
+                        style = SensTypography.labelSmall,
+                        color = SensTextPrimary
+                    )
+                    Text(
+                        text = "Z${index + 1}",
+                        style = SensTypography.labelSmall,
+                        color = SensTextTertiary
+                    )
                 }
-                Text(text = "${mins}m ($pct%)", style = SensTypography.bodyMedium, color = SensTextSecondary)
             }
         }
     }

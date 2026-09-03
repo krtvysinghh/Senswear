@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -38,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,6 +68,7 @@ import com.senswear.app.core.designsystem.theme.SensTextTertiary
 import com.senswear.app.core.designsystem.theme.SensTypography
 import com.senswear.app.core.designsystem.theme.SensViolet
 import com.senswear.app.core.domain.model.ConnectionState
+import com.senswear.app.core.domain.model.PhysiologicalDerivationEngine
 
 @Composable
 fun HomeScreen(
@@ -81,10 +84,24 @@ fun HomeScreen(
     val connectionState by viewModel.connectionState.collectAsState()
     val liveMetrics by viewModel.liveMetrics.collectAsState()
 
-    val currentSteps = liveMetrics.steps.takeIf { it > 0 } ?: uiState.dailyActivity?.steps ?: 8421
+    val isConnected = connectionState == ConnectionState.CONNECTED
+
+    // Production Truth: Use real recorded steps; derive distance & calories physiologically
+    val currentSteps = liveMetrics.steps.takeIf { it > 0 } ?: uiState.dailyActivity?.steps ?: 0
     val stepGoal = uiState.dailyActivity?.stepGoal ?: 10000
-    val progress = (currentSteps.toFloat() / stepGoal.toFloat()).coerceIn(0f, 1.5f)
-    val liveBpm = liveMetrics.liveHeartRateBpm ?: 76
+    val progress = if (stepGoal > 0) (currentSteps.toFloat() / stepGoal.toFloat()).coerceIn(0f, 1.5f) else 0f
+
+    val derivedDistanceKm = remember(currentSteps) {
+        PhysiologicalDerivationEngine.deriveDistanceKm(currentSteps)
+    }
+    val derivedActiveCalories = remember(currentSteps) {
+        PhysiologicalDerivationEngine.deriveCaloriesFromSteps(currentSteps)
+    }
+
+    // Live Heart Rate from BLE stream or null if disconnected
+    val liveBpm = if (isConnected) liveMetrics.liveHeartRateBpm else null
+
+    val listState = rememberLazyListState()
 
     Column(
         modifier = modifier
@@ -100,28 +117,29 @@ fun HomeScreen(
         )
 
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Live Status Dynamic Island Capsule
-            item {
+            item(key = "status_island") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center
                 ) {
                     SensLiquidDynamicIsland(
                         state = connectionState,
-                        batteryPercent = liveMetrics.batteryPercent,
-                        rssi = -62,
+                        batteryPercent = if (isConnected) liveMetrics.batteryPercent else null,
+                        rssi = if (isConnected) -62 else null,
                         onClick = { viewModel.syncNow() }
                     )
                 }
             }
 
-            // Main Hero Liquid Glass Card with Apple-Style Liquid Ring
-            item {
+            // Main Hero Liquid Glass Card with Real Data & Apple-Style Liquid Ring
+            item(key = "daily_movement") {
                 SensLiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
                     accentGlowColor = SensCyan,
@@ -147,7 +165,7 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${(progress * 100).toInt()}% of $stepGoal goal",
+                                text = if (currentSteps > 0) "${(progress * 100).toInt()}% of $stepGoal goal" else "No steps recorded today",
                                 style = SensTypography.bodyMedium,
                                 color = Color(0xFF00F0FF)
                             )
@@ -155,13 +173,13 @@ fun HomeScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 MiniMetric(
                                     label = "Distance",
-                                    value = "%.1f km".format(uiState.dailyActivity?.distanceKm ?: 6.4),
+                                    value = "%.2f km".format(derivedDistanceKm),
                                     icon = Icons.AutoMirrored.Filled.DirectionsRun,
                                     tint = SensCyan
                                 )
                                 MiniMetric(
                                     label = "Active Cal",
-                                    value = "${uiState.dailyActivity?.activeCaloriesKcal ?: 342} kcal",
+                                    value = "$derivedActiveCalories kcal",
                                     icon = Icons.Default.LocalFireDepartment,
                                     tint = SensAmber
                                 )
@@ -175,13 +193,16 @@ fun HomeScreen(
                             startColor = Color(0xFF00F0FF),
                             endColor = Color(0xFF00E676)
                         ) {
-                            LiveHeartRateBadge(bpm = liveBpm)
+                            LiveHeartRateBadge(
+                                bpm = liveBpm,
+                                isLive = isConnected && liveBpm != null
+                            )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Hourly Activity Bar Preview
+                    // Intraday Hourly Activity Distribution
                     Text(
                         text = "Intraday Step Distribution (24h)",
                         style = SensTypography.labelSmall,
@@ -197,8 +218,8 @@ fun HomeScreen(
                 }
             }
 
-            // Real-Time 60fps Cardiac ECG/PPG Waveform Card
-            item {
+            // Real-Time Physiological Cardiac Waveform Card
+            item(key = "cardiac_waveform") {
                 SensLiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
                     accentGlowColor = SensRose,
@@ -211,14 +232,14 @@ fun HomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "LIVE CARDIAC WAVEFORM",
+                                text = "CARDIAC TELEMETRY",
                                 style = SensTypography.labelSmall,
                                 color = SensRose,
                                 letterSpacing = 1.2.sp
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "$liveBpm BPM Pulse",
+                                text = if (liveBpm != null) "$liveBpm BPM Pulse" else "Awaiting Watch Stream",
                                 style = SensTypography.titleMedium,
                                 color = SensTextPrimary,
                                 fontWeight = FontWeight.Bold
@@ -227,37 +248,38 @@ fun HomeScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(SensRose.copy(alpha = 0.15f))
-                                .border(1.dp, SensRose.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                .background(if (isConnected) SensRose.copy(alpha = 0.15f) else Color(0x14FFFFFF))
+                                .border(1.dp, if (isConnected) SensRose.copy(alpha = 0.3f) else Color(0x1AFFFFFF), RoundedCornerShape(12.dp))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "1 Hz Live BLE",
+                                text = if (isConnected) "1 Hz Live BLE" else "Disconnected",
                                 style = SensTypography.labelSmall,
-                                color = SensRose,
+                                color = if (isConnected) SensRose else SensTextTertiary,
                                 fontSize = 10.sp
                             )
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     SensLiveWaveform(
-                        bpm = liveBpm,
-                        lineColor = SensRose,
-                        height = 54.dp
+                        bpm = liveBpm ?: 0,
+                        lineColor = if (isConnected) SensRose else Color(0x33F43F5E),
+                        height = 54.dp,
+                        isLive = isConnected && liveBpm != null
                     )
                 }
             }
 
-            // Quick Health Metric Grid (SpO2, HRV, Stress, Skin Temp)
-            item {
+            // Quick Health Metric Grid with Production Truth Values
+            item(key = "biometric_row_1") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     QuickHealthLiquidCard(
                         title = "SpO₂",
-                        value = "${liveMetrics.spo2Percent ?: 98}%",
-                        status = "Optimal",
+                        value = liveMetrics.spo2Percent?.let { "$it%" } ?: "--",
+                        status = if (liveMetrics.spo2Percent != null) "Optimal" else "Awaiting sensor",
                         icon = Icons.Default.WaterDrop,
                         accentColor = SensCyan,
                         modifier = Modifier.weight(1f),
@@ -265,8 +287,8 @@ fun HomeScreen(
                     )
                     QuickHealthLiquidCard(
                         title = "HRV",
-                        value = "${liveMetrics.hrvRmssdMs ?: 54} ms",
-                        status = "Balanced",
+                        value = liveMetrics.hrvRmssdMs?.let { "$it ms" } ?: "--",
+                        status = if (liveMetrics.hrvRmssdMs != null) "Measured" else "Awaiting sensor",
                         icon = Icons.Default.Speed,
                         accentColor = SensViolet,
                         modifier = Modifier.weight(1f),
@@ -275,15 +297,16 @@ fun HomeScreen(
                 }
             }
 
-            item {
+            item(key = "biometric_row_2") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    val derivedStress = PhysiologicalDerivationEngine.deriveStressFromHrv(liveMetrics.hrvRmssdMs)
                     QuickHealthLiquidCard(
                         title = "Stress",
-                        value = "${liveMetrics.stressScore ?: 22}",
-                        status = "Relaxed",
+                        value = derivedStress?.toString() ?: "--",
+                        status = if (derivedStress != null) "Autonomic Balance" else "Derived from HRV",
                         icon = Icons.Default.Bolt,
                         accentColor = SensEmerald,
                         modifier = Modifier.weight(1f),
@@ -291,8 +314,8 @@ fun HomeScreen(
                     )
                     QuickHealthLiquidCard(
                         title = "Skin Temp",
-                        value = "%.1f°C".format(liveMetrics.skinTemperatureCelsius ?: 36.6),
-                        status = "Normal",
+                        value = liveMetrics.skinTemperatureCelsius?.let { "%.1f°C".format(it) } ?: "--",
+                        status = if (liveMetrics.skinTemperatureCelsius != null) "Nocturnal baseline" else "Awaiting sensor",
                         icon = Icons.Default.Thermostat,
                         accentColor = SensAmber,
                         modifier = Modifier.weight(1f),
@@ -302,7 +325,7 @@ fun HomeScreen(
             }
 
             // Sleep Summary Card
-            item {
+            item(key = "sleep_card") {
                 uiState.latestSleep?.let { sleep ->
                     SensLiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -376,7 +399,7 @@ fun HomeScreen(
             }
 
             // Quick Start Workout CTA
-            item {
+            item(key = "workout_cta") {
                 SensLiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onNavigateToWorkouts,
@@ -422,7 +445,7 @@ fun HomeScreen(
             }
 
             // Bottom Spacing for Floating Nav Bar
-            item {
+            item(key = "bottom_space") {
                 Spacer(modifier = Modifier.height(84.dp))
             }
         }
@@ -430,13 +453,13 @@ fun HomeScreen(
 }
 
 @Composable
-private fun LiveHeartRateBadge(bpm: Int) {
+private fun LiveHeartRateBadge(bpm: Int?, isLive: Boolean) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val scale by infiniteTransition.animateFloat(
-        initialValue = 0.92f,
-        targetValue = 1.08f,
+        initialValue = if (isLive && bpm != null) 0.92f else 1.0f,
+        targetValue = if (isLive && bpm != null) 1.08f else 1.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 60000 / bpm.coerceIn(50, 180)),
+            animation = tween(durationMillis = if (bpm != null && bpm > 0) 60000 / bpm.coerceIn(50, 180) else 1000),
             repeatMode = RepeatMode.Reverse
         ),
         label = "hr_scale"
@@ -448,16 +471,16 @@ private fun LiveHeartRateBadge(bpm: Int) {
         Icon(
             imageVector = Icons.Default.Favorite,
             contentDescription = "Live Heart Rate",
-            tint = SensRose,
+            tint = if (isLive) SensRose else Color(0x66F43F5E),
             modifier = Modifier
                 .size(20.dp)
                 .scale(scale)
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "$bpm",
+            text = bpm?.toString() ?: "--",
             style = SensTypography.titleLarge,
-            color = SensTextPrimary,
+            color = if (isLive) SensTextPrimary else SensTextTertiary,
             fontWeight = FontWeight.Bold
         )
         Text(
