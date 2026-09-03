@@ -23,9 +23,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.DirectionsRun
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.LocalFireDepartment
@@ -48,19 +48,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.senswear.app.core.designsystem.components.SensGlassButton
-import com.senswear.app.core.designsystem.components.SensGlassCard
-import com.senswear.app.core.designsystem.components.SensGlassSurface
 import com.senswear.app.core.designsystem.components.SensHourlyBarChart
-import com.senswear.app.core.designsystem.components.SensMetricLarge
-import com.senswear.app.core.designsystem.components.SensProgressRing
+import com.senswear.app.core.designsystem.components.SensLiquidDynamicIsland
+import com.senswear.app.core.designsystem.components.SensLiquidGlassCard
+import com.senswear.app.core.designsystem.components.SensLiquidProgressRing
+import com.senswear.app.core.designsystem.components.SensLiveWaveform
 import com.senswear.app.core.designsystem.components.SensTopBar
 import com.senswear.app.core.designsystem.theme.SensAmber
 import com.senswear.app.core.designsystem.theme.SensCyan
-import com.senswear.app.core.designsystem.theme.SensCyanGlow
 import com.senswear.app.core.designsystem.theme.SensEmerald
-import com.senswear.app.core.designsystem.theme.SensGlassBg
-import com.senswear.app.core.designsystem.theme.SensGlassBorder
 import com.senswear.app.core.designsystem.theme.SensIndigo
 import com.senswear.app.core.designsystem.theme.SensObsidian
 import com.senswear.app.core.designsystem.theme.SensRose
@@ -88,6 +84,7 @@ fun HomeScreen(
     val currentSteps = liveMetrics.steps.takeIf { it > 0 } ?: uiState.dailyActivity?.steps ?: 8421
     val stepGoal = uiState.dailyActivity?.stepGoal ?: 10000
     val progress = (currentSteps.toFloat() / stepGoal.toFloat()).coerceIn(0f, 1.5f)
+    val liveBpm = liveMetrics.liveHeartRateBpm ?: 76
 
     Column(
         modifier = modifier
@@ -108,25 +105,41 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Main Hero Step Progress Ring & Live HR
+            // Live Status Dynamic Island Capsule
             item {
-                SensGlassCard(
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    accentGlow = SensCyan
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    SensLiquidDynamicIsland(
+                        state = connectionState,
+                        batteryPercent = liveMetrics.batteryPercent,
+                        rssi = -62,
+                        onClick = { viewModel.syncNow() }
+                    )
+                }
+            }
+
+            // Main Hero Liquid Glass Card with Apple-Style Liquid Ring
+            item {
+                SensLiquidGlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    accentGlowColor = SensCyan,
+                    onClick = onNavigateToActivity
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "TODAY'S ACTIVITY",
+                                text = "DAILY MOVEMENT",
                                 style = SensTypography.labelSmall,
-                                color = SensTextSecondary,
+                                color = Color(0xFFD4A373),
                                 letterSpacing = 1.5.sp
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "%,d".format(currentSteps),
                                 style = SensTypography.displayMedium,
@@ -134,16 +147,16 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${(progress * 100).toInt()}% of $stepGoal step goal",
+                                text = "${(progress * 100).toInt()}% of $stepGoal goal",
                                 style = SensTypography.bodyMedium,
-                                color = SensCyan
+                                color = Color(0xFF00F0FF)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                 MiniMetric(
                                     label = "Distance",
                                     value = "%.1f km".format(uiState.dailyActivity?.distanceKm ?: 6.4),
-                                    icon = Icons.Default.DirectionsRun,
+                                    icon = Icons.AutoMirrored.Filled.DirectionsRun,
                                     tint = SensCyan
                                 )
                                 MiniMetric(
@@ -155,14 +168,14 @@ fun HomeScreen(
                             }
                         }
 
-                        SensProgressRing(
+                        SensLiquidProgressRing(
                             progress = progress,
-                            modifier = Modifier.size(110.dp),
-                            strokeWidth = 10.dp
+                            size = 124.dp,
+                            strokeWidth = 11.dp,
+                            startColor = Color(0xFF00F0FF),
+                            endColor = Color(0xFF00E676)
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                LiveHeartRateBadge(bpm = liveMetrics.liveHeartRateBpm ?: 76)
-                            }
+                            LiveHeartRateBadge(bpm = liveBpm)
                         }
                     }
 
@@ -170,7 +183,7 @@ fun HomeScreen(
 
                     // Hourly Activity Bar Preview
                     Text(
-                        text = "Hourly Step Distribution",
+                        text = "Intraday Step Distribution (24h)",
                         style = SensTypography.labelSmall,
                         color = SensTextTertiary
                     )
@@ -179,7 +192,58 @@ fun HomeScreen(
                         hourlyValues = uiState.dailyActivity?.hourlySteps ?: List(24) { 0 },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .height(44.dp)
+                    )
+                }
+            }
+
+            // Real-Time 60fps Cardiac ECG/PPG Waveform Card
+            item {
+                SensLiquidGlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    accentGlowColor = SensRose,
+                    onClick = onNavigateToHealth
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "LIVE CARDIAC WAVEFORM",
+                                style = SensTypography.labelSmall,
+                                color = SensRose,
+                                letterSpacing = 1.2.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$liveBpm BPM Pulse",
+                                style = SensTypography.titleMedium,
+                                color = SensTextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(SensRose.copy(alpha = 0.15f))
+                                .border(1.dp, SensRose.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "1 Hz Live BLE",
+                                style = SensTypography.labelSmall,
+                                color = SensRose,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SensLiveWaveform(
+                        bpm = liveBpm,
+                        lineColor = SensRose,
+                        height = 54.dp
                     )
                 }
             }
@@ -190,7 +254,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    QuickHealthCard(
+                    QuickHealthLiquidCard(
                         title = "SpO₂",
                         value = "${liveMetrics.spo2Percent ?: 98}%",
                         status = "Optimal",
@@ -199,7 +263,7 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToHealth
                     )
-                    QuickHealthCard(
+                    QuickHealthLiquidCard(
                         title = "HRV",
                         value = "${liveMetrics.hrvRmssdMs ?: 54} ms",
                         status = "Balanced",
@@ -216,7 +280,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    QuickHealthCard(
+                    QuickHealthLiquidCard(
                         title = "Stress",
                         value = "${liveMetrics.stressScore ?: 22}",
                         status = "Relaxed",
@@ -225,10 +289,10 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToHealth
                     )
-                    QuickHealthCard(
+                    QuickHealthLiquidCard(
                         title = "Skin Temp",
                         value = "%.1f°C".format(liveMetrics.skinTemperatureCelsius ?: 36.6),
-                        status = "Normal baseline",
+                        status = "Normal",
                         icon = Icons.Default.Thermostat,
                         accentColor = SensAmber,
                         modifier = Modifier.weight(1f),
@@ -240,10 +304,10 @@ fun HomeScreen(
             // Sleep Summary Card
             item {
                 uiState.latestSleep?.let { sleep ->
-                    SensGlassCard(
+                    SensLiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = onNavigateToSleep,
-                        accentGlow = SensIndigo
+                        accentGlowColor = SensIndigo
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -313,10 +377,10 @@ fun HomeScreen(
 
             // Quick Start Workout CTA
             item {
-                SensGlassCard(
+                SensLiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = onNavigateToWorkouts,
-                    accentGlow = SensRose
+                    accentGlowColor = SensRose
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -406,7 +470,7 @@ private fun LiveHeartRateBadge(bpm: Int) {
 }
 
 @Composable
-private fun QuickHealthCard(
+private fun QuickHealthLiquidCard(
     title: String,
     value: String,
     status: String,
@@ -415,10 +479,10 @@ private fun QuickHealthCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    SensGlassCard(
+    SensLiquidGlassCard(
         modifier = modifier,
         onClick = onClick,
-        accentGlow = accentColor
+        accentGlowColor = accentColor
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),

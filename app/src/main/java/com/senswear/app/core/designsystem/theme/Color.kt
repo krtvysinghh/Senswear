@@ -29,6 +29,7 @@ val SensBlue = Color(0xFF3B82F6)
 val SensTextPrimary = Color(0xFFF8FAFC)
 val SensTextSecondary = Color(0xFF94A3B8)
 val SensTextTertiary = Color(0xFF64748B)
+val SensTextMuted = Color(0xFF64748B)
 
 // Status
 val SensSuccess = Color(0xFF10B981)
