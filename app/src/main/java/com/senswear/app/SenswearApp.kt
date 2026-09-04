@@ -5,6 +5,7 @@ import com.senswear.app.core.ble.WearableConnector
 import com.senswear.app.core.data.local.SenswearDatabase
 import com.senswear.app.core.data.repository.AchievementRepository
 import com.senswear.app.core.data.repository.ActivityRepository
+import com.senswear.app.core.data.repository.DataProvenanceRepository
 import com.senswear.app.core.data.repository.GoalRepository
 import com.senswear.app.core.data.repository.HealthRepository
 import com.senswear.app.core.data.repository.InsightsRepository
@@ -12,6 +13,7 @@ import com.senswear.app.core.data.repository.SleepRepository
 import com.senswear.app.core.data.repository.WorkoutRepository
 import com.senswear.app.core.healthconnect.HealthConnectManager
 import com.senswear.app.core.wearable.WearableManager
+import com.senswear.app.core.wearable.cloud.CloudSyncManager
 
 class SenswearApp : Application() {
 
@@ -48,6 +50,12 @@ class SenswearApp : Application() {
     lateinit var insightsRepository: InsightsRepository
         private set
 
+    lateinit var dataProvenanceRepository: DataProvenanceRepository
+        private set
+
+    lateinit var cloudSyncManager: CloudSyncManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -56,7 +64,6 @@ class SenswearApp : Application() {
         healthConnectManager = HealthConnectManager(this)
 
         // Production Truth: Universal Wearable Architecture
-        // Uses WearableManager with capability registry and vendor adapters
         wearableManager = WearableManager(this, healthConnectManager)
         wearableConnector = wearableManager
 
@@ -67,6 +74,8 @@ class SenswearApp : Application() {
         goalRepository = GoalRepository(database)
         achievementRepository = AchievementRepository(database)
         insightsRepository = InsightsRepository()
+        dataProvenanceRepository = DataProvenanceRepository(database)
+        cloudSyncManager = CloudSyncManager(healthRepository, activityRepository, dataProvenanceRepository)
     }
 
     companion object {
