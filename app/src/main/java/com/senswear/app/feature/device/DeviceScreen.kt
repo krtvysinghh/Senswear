@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,16 +18,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Watch
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -45,8 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.senswear.app.core.designsystem.components.SensConnectionBadge
 import com.senswear.app.core.designsystem.components.SensGlassButton
-import com.senswear.app.core.designsystem.components.SensGlassCard
-import com.senswear.app.core.designsystem.components.SensMetricLarge
+import com.senswear.app.core.designsystem.components.SensLiquidCapsule
+import com.senswear.app.core.designsystem.components.SensLiquidGlassCard
 import com.senswear.app.core.designsystem.components.SensTopBar
 import com.senswear.app.core.designsystem.theme.SensAmber
 import com.senswear.app.core.designsystem.theme.SensCyan
@@ -59,6 +66,7 @@ import com.senswear.app.core.designsystem.theme.SensTextSecondary
 import com.senswear.app.core.designsystem.theme.SensTextTertiary
 import com.senswear.app.core.designsystem.theme.SensTypography
 import com.senswear.app.core.domain.model.ConnectionState
+import com.senswear.app.core.domain.model.WearableBrand
 
 @Composable
 fun DeviceScreen(
@@ -70,28 +78,60 @@ fun DeviceScreen(
     val rawPacketLogs by viewModel.rawPacketLogs.collectAsState()
     var showDiagnostics by remember { mutableStateOf(false) }
 
+    val isConnected = connectionState == ConnectionState.CONNECTED
+    val listState = rememberLazyListState()
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(SensObsidian)
     ) {
         SensTopBar(
-            title = "Device",
-            subtitle = "Pebble Qore 2 Hardware",
+            title = "Wearables Hub",
+            subtitle = if (isConnected) "Connected: ${uiState.device?.name ?: "Watch"}" else "Universal Biometric Wearables",
             connectionState = connectionState
         )
 
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Qore 2 Hero Status Card
-            item {
-                SensGlassCard(
+            // Multi-Brand Wearable Selector Carousel
+            item(key = "brand_carousel") {
+                Column {
+                    Text(
+                        text = "SUPPORTED WEARABLES",
+                        style = SensTypography.labelSmall,
+                        color = Color(0xFFD4A373),
+                        letterSpacing = 1.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        WearableBrand.entries.forEach { brand ->
+                            val isSelected = uiState.selectedBrand == brand
+                            SensLiquidCapsule(
+                                text = brand.displayName,
+                                isSelected = isSelected,
+                                onClick = { viewModel.selectBrand(brand) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Hero Connected Device Card / Universal Pairing Card
+            item(key = "hero_device_card") {
+                SensLiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    accentGlow = SensCyan
+                    accentGlowColor = if (isConnected) SensEmerald else SensCyan
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -101,165 +141,253 @@ fun DeviceScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(52.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
-                                    .background(SensCyan.copy(alpha = 0.2f)),
+                                    .background(if (isConnected) SensEmerald.copy(alpha = 0.2f) else SensCyan.copy(alpha = 0.2f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Watch,
+                                    imageVector = if (isConnected) Icons.Default.Watch else Icons.Default.BluetoothSearching,
                                     contentDescription = null,
-                                    tint = SensCyan,
-                                    modifier = Modifier.size(28.dp)
+                                    tint = if (isConnected) SensEmerald else SensCyan,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.width(14.dp))
                             Column {
                                 Text(
-                                    text = "PEBBLE QORE 2",
-                                    style = SensTypography.titleLarge,
+                                    text = if (isConnected) (uiState.device?.name ?: "Wearable Device") else uiState.selectedBrand.displayName,
+                                    style = SensTypography.titleMedium,
                                     color = SensTextPrimary,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Screen-Free Titanium Chassis",
+                                    text = if (isConnected) "Active Bluetooth LE Telemetry Stream" else uiState.selectedBrand.brandCategory,
                                     style = SensTypography.bodyMedium,
                                     color = SensTextSecondary
                                 )
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        SensMetricLarge(
-                            value = "${uiState.batteryState.percentage}%",
-                            unit = "(${uiState.batteryState.estimatedDaysRemaining} days remaining)",
-                            label = "Battery Health",
-                            accentColor = SensEmerald,
-                            modifier = Modifier.weight(1f)
-                        )
+                        SensConnectionBadge(connectionState = connectionState)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        SensGlassButton(
-                            text = if (uiState.isSyncing) "Syncing..." else "Sync Now",
-                            icon = Icons.Default.Refresh,
-                            onClick = { viewModel.syncNow() },
-                            modifier = Modifier.weight(1f)
-                        )
+                    if (isConnected) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            DeviceStatMini(
+                                label = "Battery",
+                                value = "${uiState.batteryState.percentage}%",
+                                icon = Icons.Default.BatteryChargingFull,
+                                tint = SensEmerald
+                            )
+                            DeviceStatMini(
+                                label = "Protocol",
+                                value = "GATT BLE 5.4",
+                                icon = Icons.Default.Bluetooth,
+                                tint = SensCyan
+                            )
+                            DeviceStatMini(
+                                label = "Status",
+                                value = "Synced",
+                                icon = Icons.Default.CheckCircle,
+                                tint = SensIndigo
+                            )
+                        }
 
-                        SensGlassButton(
-                            text = if (connectionState == ConnectionState.CONNECTED) "Disconnect" else "Connect",
-                            onClick = {
-                                if (connectionState == ConnectionState.CONNECTED) viewModel.disconnectDevice()
-                                else viewModel.connectDevice()
-                            },
-                            modifier = Modifier.weight(1f),
-                            isPrimary = false
-                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            SensGlassButton(
+                                text = if (uiState.isSyncing) "Syncing..." else "Sync Now",
+                                onClick = { viewModel.syncNow() },
+                                modifier = Modifier.weight(1f),
+                                isPrimary = true
+                            )
+                            SensGlassButton(
+                                text = "Disconnect",
+                                onClick = { viewModel.disconnectDevice() },
+                                modifier = Modifier.weight(1f),
+                                isPrimary = false
+                            )
+                        }
+                    } else {
+                        Column {
+                            Text(
+                                text = "Compatible with Samsung Galaxy Watch 4/5/6/7, Apple Watch (BLE Heart Rate Broadcast), Whoop 3.0/4.0, Garmin, Fitbit, Oura Ring, and Pebble Qore 2.",
+                                style = SensTypography.bodySmall,
+                                color = SensTextTertiary,
+                                lineHeight = 16.sp
+                            )
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                SensGlassButton(
+                                    text = if (uiState.isScanning) "Stop Scanning" else "Scan Nearby Wearables",
+                                    onClick = {
+                                        if (uiState.isScanning) viewModel.stopScanning() else viewModel.startScanning()
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    isPrimary = true
+                                )
+                            }
+                        }
                     }
                 }
             }
 
-            // Hardware & Firmware Details Card
-            item {
-                SensGlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Hardware Specifications",
-                        style = SensTypography.titleMedium,
-                        color = SensTextPrimary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    DetailRow("Model Number", "PB-Q2-BLACK")
-                    DetailRow("Firmware Version", "v2.4.1-rc3 (Latest)")
-                    DetailRow("Hardware Revision", "Rev. C (Optical PPG 3.0)")
-                    DetailRow("MAC Address", "E4:5F:01:A8:2B:99")
-                    DetailRow("Bluetooth Profile", "BLE 5.4 Low Energy")
-                    DetailRow("Signal RSSI", "-58 dBm (Excellent)")
-                    DetailRow("Last Synchronization", uiState.lastSyncMessage)
-                }
-            }
-
-            // Device Actions & Haptic Testing
-            item {
-                SensGlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "Device Tools & Testing",
-                        style = SensTypography.titleMedium,
-                        color = SensTextPrimary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
+            // Scanned Nearby Devices List
+            if (uiState.isScanning || uiState.scannedDevices.isNotEmpty()) {
+                item(key = "scanned_header") {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SensGlassButton(
-                            text = "Test Haptics",
-                            icon = Icons.Default.Vibration,
-                            onClick = { viewModel.testHapticFeedback(1) },
-                            modifier = Modifier.weight(1f),
-                            isPrimary = false
-                        )
-                        SensGlassButton(
-                            text = "Diagnostics",
-                            icon = Icons.Default.BugReport,
-                            onClick = { showDiagnostics = !showDiagnostics },
-                            modifier = Modifier.weight(1f),
-                            isPrimary = false
-                        )
-                    }
-                }
-            }
-
-            // Real-time Diagnostics Terminal (if expanded)
-            item {
-                AnimatedVisibility(visible = showDiagnostics) {
-                    SensGlassCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        accentGlow = SensEmerald
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Developer BLE Packet Stream",
-                            style = SensTypography.titleMedium,
-                            color = SensTextPrimary,
-                            fontWeight = FontWeight.SemiBold
+                            text = "DISCOVERED WEARABLES (${uiState.scannedDevices.size})",
+                            style = SensTypography.labelSmall,
+                            color = SensCyan,
+                            letterSpacing = 1.2.sp
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        if (uiState.isScanning) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(12.dp),
+                                    strokeWidth = 2.dp,
+                                    color = SensCyan
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Scanning...",
+                                    style = SensTypography.labelSmall,
+                                    color = SensTextTertiary
+                                )
+                            }
+                        }
+                    }
+                }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(180.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF070A10))
-                                .padding(10.dp)
+                items(uiState.scannedDevices, key = { it.device.macAddress }) { scanned ->
+                    SensLiquidGlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { viewModel.connectDevice(scanned.device.macAddress) }
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                reverseLayout = true
-                            ) {
-                                items(rawPacketLogs.reversed()) { log ->
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = log,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontSize = 11.sp,
-                                        color = if (log.contains("RX")) SensEmerald else if (log.contains("TX")) SensCyan else SensTextSecondary,
-                                        lineHeight = 15.sp
+                                        text = scanned.device.name,
+                                        style = SensTypography.titleMedium,
+                                        color = SensTextPrimary,
+                                        fontWeight = FontWeight.Bold
                                     )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0x2200F0FF))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = scanned.brand.displayName,
+                                            style = SensTypography.labelSmall,
+                                            color = SensCyan,
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "${scanned.device.macAddress} • RSSI: ${scanned.rssi} dBm",
+                                    style = SensTypography.labelSmall,
+                                    color = SensTextTertiary
+                                )
+                            }
+
+                            SensGlassButton(
+                                text = "Pair",
+                                onClick = { viewModel.connectDevice(scanned.device.macAddress) },
+                                isPrimary = true
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Developer Packet Trace Console
+            item(key = "diagnostics_toggle") {
+                SensLiquidGlassCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showDiagnostics = !showDiagnostics }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.BugReport,
+                                contentDescription = null,
+                                tint = SensAmber,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Live GATT Telemetry Terminal",
+                                style = SensTypography.titleMedium,
+                                color = SensTextPrimary
+                            )
+                        }
+                        Text(
+                            text = if (showDiagnostics) "Hide" else "Expand (${rawPacketLogs.size})",
+                            style = SensTypography.labelSmall,
+                            color = SensCyan
+                        )
+                    }
+
+                    AnimatedVisibility(visible = showDiagnostics) {
+                        Column(modifier = Modifier.padding(top = 12.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFF030712))
+                                    .padding(10.dp)
+                            ) {
+                                if (rawPacketLogs.isEmpty()) {
+                                    Text(
+                                        text = "Awaiting GATT telemetry packets...",
+                                        style = SensTypography.bodySmall,
+                                        color = SensTextTertiary,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                } else {
+                                    LazyColumn {
+                                        items(rawPacketLogs.reversed()) { log ->
+                                            Text(
+                                                text = log,
+                                                style = SensTypography.bodySmall,
+                                                color = Color(0xFF38BDF8),
+                                                fontSize = 11.sp,
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -267,20 +395,27 @@ fun DeviceScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(84.dp)) }
+            // Bottom Spacing for Floating Nav Bar
+            item(key = "bottom_space") {
+                Spacer(modifier = Modifier.height(84.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 5.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = label, style = SensTypography.bodyMedium, color = SensTextSecondary)
-        Text(text = value, style = SensTypography.bodyMedium, color = SensTextPrimary, fontWeight = FontWeight.Medium)
+private fun DeviceStatMini(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Column {
+            Text(text = label, style = SensTypography.labelSmall, color = SensTextTertiary, fontSize = 10.sp)
+            Text(text = value, style = SensTypography.titleSmall, color = SensTextPrimary, fontWeight = FontWeight.Bold)
+        }
     }
 }

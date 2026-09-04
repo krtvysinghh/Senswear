@@ -1,7 +1,7 @@
 package com.senswear.app
 
 import android.app.Application
-import com.senswear.app.core.ble.Qore2Connector
+import com.senswear.app.core.ble.UniversalBleConnector
 import com.senswear.app.core.ble.WearableConnector
 import com.senswear.app.core.data.local.SenswearDatabase
 import com.senswear.app.core.data.repository.AchievementRepository
@@ -52,10 +52,9 @@ class SenswearApp : Application() {
         database = SenswearDatabase.getInstance(this)
         healthConnectManager = HealthConnectManager(this)
 
-        // Strict Production Truth Rule:
-        // Always bind directly to the real Pebble Qore 2 Bluetooth LE GATT connector.
-        // The app starts DISCONNECTED until physical hardware is actively paired and streaming.
-        wearableConnector = Qore2Connector(this)
+        // Universal Wearable Engine:
+        // Connects to Apple Watch, Samsung Galaxy Watch, Whoop 4.0, Pebble Qore 2, Garmin, Fitbit, etc.
+        wearableConnector = UniversalBleConnector(this)
 
         activityRepository = ActivityRepository(database)
         healthRepository = HealthRepository(database)

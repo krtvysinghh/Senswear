@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
         )
 
         val deviceViewModel = DeviceViewModel(
+            context = app,
             wearableConnector = app.wearableConnector
         )
 
