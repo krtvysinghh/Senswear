@@ -47,86 +47,142 @@ class HealthRepository(private val dbHelper: SenswearDatabase) {
                 list.add(HeartRateReading(time, bpm, resting, src))
             }
         }
-
-        if (list.isEmpty()) {
-            generateFallbackHeartRate(hours)
-        } else list
+        list
     }
 
-    private fun generateFallbackHeartRate(hours: Int): List<HeartRateReading> {
-        val now = System.currentTimeMillis()
-        val list = mutableListOf<HeartRateReading>()
-        val points = hours * 4 // 1 every 15 minutes
-        for (i in 0 until points) {
-            val t = now - (points - i) * (15 * 60 * 1000L)
-            val baseHr = if (i % 24 in 0..8) 58 else 74
-            val variation = (Math.sin(i.toDouble() / 3.0) * 12).toInt()
-            list.add(
-                HeartRateReading(
-                    timestampEpochMs = t,
-                    bpm = (baseHr + variation).coerceIn(52, 138),
-                    restingHeartRateBpm = 61,
-                    source = DataSource.PEBBLE_QORE_2_BLE
-                )
-            )
+    suspend fun saveSpo2(reading: Spo2Reading) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put("timestamp", reading.timestampEpochMs)
+            put("percentage", reading.percentage)
+            put("source", reading.source.name)
         }
-        return list
+        db.insert("spo2_readings", null, values)
+        dbHelper.notifyChanged()
     }
 
     suspend fun getRecentSpo2Readings(days: Int = 7): List<Spo2Reading> = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
-        listOf(
-            Spo2Reading(now - 3600000L * 2, 98),
-            Spo2Reading(now - 3600000L * 6, 99),
-            Spo2Reading(now - 3600000L * 12, 98),
-            Spo2Reading(now - 3600000L * 24, 97),
-            Spo2Reading(now - 3600000L * 48, 98),
-            Spo2Reading(now - 3600000L * 72, 99),
-            Spo2Reading(now - 3600000L * 96, 98)
+        val db = dbHelper.readableDatabase
+        val cutoff = System.currentTimeMillis() - (days * 86400 * 1000L)
+        val cursor = db.query(
+            "spo2_readings",
+            null,
+            "timestamp >= ?",
+            arrayOf(cutoff.toString()),
+            null, null, "timestamp ASC"
         )
-    }
-
-    suspend fun getRecentHrvReadings(days: Int = 7): List<HrvReading> = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
-        listOf(
-            HrvReading(now - 3600000L * 4, 54, 62),
-            HrvReading(now - 3600000L * 24, 58, 65),
-            HrvReading(now - 3600000L * 48, 51, 59),
-            HrvReading(now - 3600000L * 72, 62, 70),
-            HrvReading(now - 3600000L * 96, 49, 56),
-            HrvReading(now - 3600000L * 120, 56, 64),
-            HrvReading(now - 3600000L * 144, 55, 63)
-        )
-    }
-
-    suspend fun getRecentStressReadings(hours: Int = 24): List<StressReading> = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
-        val list = mutableListOf<StressReading>()
-        for (i in 0 until 12) {
-            val t = now - (12 - i) * (2 * 3600 * 1000L)
-            val score = when (i) {
-                in 0..3 -> 14 // night sleep
-                4 -> 28 // morning
-                in 5..7 -> 48 // work focus
-                8 -> 32 // lunch
-                9 -> 42 // afternoon
-                else -> 22 // evening relaxation
+        val list = mutableListOf<Spo2Reading>()
+        cursor.use {
+            while (it.moveToNext()) {
+                val time = it.getLong(it.getColumnIndexOrThrow("timestamp"))
+                val pct = it.getInt(it.getColumnIndexOrThrow("percentage"))
+                val src = try { DataSource.valueOf(it.getString(it.getColumnIndexOrThrow("source"))) } catch (e: Exception) { DataSource.PEBBLE_QORE_2_BLE }
+                list.add(Spo2Reading(time, pct, src))
             }
-            list.add(StressReading(t, score))
         }
         list
     }
 
-    suspend fun getRecentTemperatureReadings(days: Int = 7): List<TemperatureReading> = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
-        listOf(
-            TemperatureReading(now - 3600000L * 4, 36.6, 0.0),
-            TemperatureReading(now - 3600000L * 24, 36.4, -0.2),
-            TemperatureReading(now - 3600000L * 48, 36.7, 0.1),
-            TemperatureReading(now - 3600000L * 72, 36.5, -0.1),
-            TemperatureReading(now - 3600000L * 96, 36.8, 0.2),
-            TemperatureReading(now - 3600000L * 120, 36.6, 0.0),
-            TemperatureReading(now - 3600000L * 144, 36.6, 0.0)
+    suspend fun saveHrv(reading: HrvReading) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put("timestamp", reading.timestampEpochMs)
+            put("rmssd", reading.rmssdMs)
+            put("sdnn", reading.sdnnMs)
+            put("source", reading.source.name)
+        }
+        db.insert("hrv_readings", null, values)
+        dbHelper.notifyChanged()
+    }
+
+    suspend fun getRecentHrvReadings(days: Int = 7): List<HrvReading> = withContext(Dispatchers.IO) {
+        val db = dbHelper.readableDatabase
+        val cutoff = System.currentTimeMillis() - (days * 86400 * 1000L)
+        val cursor = db.query(
+            "hrv_readings",
+            null,
+            "timestamp >= ?",
+            arrayOf(cutoff.toString()),
+            null, null, "timestamp ASC"
         )
+        val list = mutableListOf<HrvReading>()
+        cursor.use {
+            while (it.moveToNext()) {
+                val time = it.getLong(it.getColumnIndexOrThrow("timestamp"))
+                val rmssd = it.getInt(it.getColumnIndexOrThrow("rmssd"))
+                val sdnn = if (it.isNull(it.getColumnIndexOrThrow("sdnn"))) null else it.getInt(it.getColumnIndexOrThrow("sdnn"))
+                val src = try { DataSource.valueOf(it.getString(it.getColumnIndexOrThrow("source"))) } catch (e: Exception) { DataSource.PEBBLE_QORE_2_BLE }
+                list.add(HrvReading(time, rmssd, sdnn, src))
+            }
+        }
+        list
+    }
+
+    suspend fun saveTemperature(reading: TemperatureReading) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put("timestamp", reading.timestampEpochMs)
+            put("temp_celsius", reading.temperatureCelsius)
+            put("baseline_delta", reading.baselineDeltaCelsius)
+            put("source", reading.source.name)
+        }
+        db.insert("temperature_readings", null, values)
+        dbHelper.notifyChanged()
+    }
+
+    suspend fun getRecentTemperatureReadings(days: Int = 7): List<TemperatureReading> = withContext(Dispatchers.IO) {
+        val db = dbHelper.readableDatabase
+        val cutoff = System.currentTimeMillis() - (days * 86400 * 1000L)
+        val cursor = db.query(
+            "temperature_readings",
+            null,
+            "timestamp >= ?",
+            arrayOf(cutoff.toString()),
+            null, null, "timestamp ASC"
+        )
+        val list = mutableListOf<TemperatureReading>()
+        cursor.use {
+            while (it.moveToNext()) {
+                val time = it.getLong(it.getColumnIndexOrThrow("timestamp"))
+                val temp = it.getDouble(it.getColumnIndexOrThrow("temp_celsius"))
+                val delta = it.getDouble(it.getColumnIndexOrThrow("baseline_delta"))
+                val src = try { DataSource.valueOf(it.getString(it.getColumnIndexOrThrow("source"))) } catch (e: Exception) { DataSource.PEBBLE_QORE_2_BLE }
+                list.add(TemperatureReading(time, temp, delta, src))
+            }
+        }
+        list
+    }
+
+    suspend fun saveStress(reading: StressReading) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put("timestamp", reading.timestampEpochMs)
+            put("score", reading.score)
+            put("source", reading.source.name)
+        }
+        db.insert("stress_readings", null, values)
+        dbHelper.notifyChanged()
+    }
+
+    suspend fun getRecentStressReadings(days: Int = 7): List<StressReading> = withContext(Dispatchers.IO) {
+        val db = dbHelper.readableDatabase
+        val cutoff = System.currentTimeMillis() - (days * 86400 * 1000L)
+        val cursor = db.query(
+            "stress_readings",
+            null,
+            "timestamp >= ?",
+            arrayOf(cutoff.toString()),
+            null, null, "timestamp ASC"
+        )
+        val list = mutableListOf<StressReading>()
+        cursor.use {
+            while (it.moveToNext()) {
+                val time = it.getLong(it.getColumnIndexOrThrow("timestamp"))
+                val score = it.getInt(it.getColumnIndexOrThrow("score"))
+                val src = try { DataSource.valueOf(it.getString(it.getColumnIndexOrThrow("source"))) } catch (e: Exception) { DataSource.PEBBLE_QORE_2_BLE }
+                list.add(StressReading(time, score, src))
+            }
+        }
+        list
     }
 }

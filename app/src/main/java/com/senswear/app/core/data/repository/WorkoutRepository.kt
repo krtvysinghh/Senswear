@@ -4,7 +4,6 @@ import android.content.ContentValues
 import android.database.sqlite.SQLiteDatabase
 import com.senswear.app.core.data.local.SenswearDatabase
 import com.senswear.app.core.domain.model.DataSource
-import com.senswear.app.core.domain.model.WorkoutSample
 import com.senswear.app.core.domain.model.WorkoutSession
 import com.senswear.app.core.domain.model.WorkoutType
 import kotlinx.coroutines.Dispatchers
@@ -13,45 +12,46 @@ import kotlinx.coroutines.withContext
 class WorkoutRepository(private val dbHelper: SenswearDatabase) {
 
     suspend fun getRecentWorkouts(): List<WorkoutSession> = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
-        listOf(
-            WorkoutSession(
-                id = "workout_1",
-                type = WorkoutType.OUTDOOR_WALK,
-                startTimeEpochMs = now - (3 * 3600 * 1000L),
-                endTimeEpochMs = now - (2 * 3600 * 1000L + 28 * 60 * 1000L),
-                durationSeconds = 1920L, // 32m
-                totalDistanceMeters = 3400.0,
-                totalCaloriesKcal = 186,
-                avgHeartRateBpm = 118,
-                maxHeartRateBpm = 138,
-                source = DataSource.PEBBLE_QORE_2_BLE
-            ),
-            WorkoutSession(
-                id = "workout_2",
-                type = WorkoutType.OUTDOOR_RUN,
-                startTimeEpochMs = now - (26 * 3600 * 1000L),
-                endTimeEpochMs = now - (25 * 3600 * 1000L + 15 * 60 * 1000L),
-                durationSeconds = 2700L, // 45m
-                totalDistanceMeters = 6800.0,
-                totalCaloriesKcal = 512,
-                avgHeartRateBpm = 152,
-                maxHeartRateBpm = 174,
-                source = DataSource.PEBBLE_QORE_2_BLE
-            ),
-            WorkoutSession(
-                id = "workout_3",
-                type = WorkoutType.HIIT,
-                startTimeEpochMs = now - (50 * 3600 * 1000L),
-                endTimeEpochMs = now - (49 * 3600 * 1000L + 30 * 60 * 1000L),
-                durationSeconds = 1800L, // 30m
-                totalDistanceMeters = 0.0,
-                totalCaloriesKcal = 340,
-                avgHeartRateBpm = 161,
-                maxHeartRateBpm = 182,
-                source = DataSource.PEBBLE_QORE_2_BLE
-            )
+        val db = dbHelper.readableDatabase
+        val cursor = db.query(
+            "workouts",
+            null,
+            null,
+            null,
+            null, null, "start_time DESC"
         )
+        val list = mutableListOf<WorkoutSession>()
+        cursor.use {
+            while (it.moveToNext()) {
+                val id = it.getString(it.getColumnIndexOrThrow("id"))
+                val typeStr = it.getString(it.getColumnIndexOrThrow("type"))
+                val type = try { WorkoutType.valueOf(typeStr) } catch (e: Exception) { WorkoutType.OUTDOOR_WALK }
+                val start = it.getLong(it.getColumnIndexOrThrow("start_time"))
+                val end = if (it.isNull(it.getColumnIndexOrThrow("end_time"))) null else it.getLong(it.getColumnIndexOrThrow("end_time"))
+                val duration = it.getLong(it.getColumnIndexOrThrow("duration_seconds"))
+                val distance = it.getDouble(it.getColumnIndexOrThrow("distance_meters"))
+                val calories = it.getInt(it.getColumnIndexOrThrow("calories"))
+                val avgHr = it.getInt(it.getColumnIndexOrThrow("avg_hr"))
+                val maxHr = it.getInt(it.getColumnIndexOrThrow("max_hr"))
+                val src = try { DataSource.valueOf(it.getString(it.getColumnIndexOrThrow("source"))) } catch (e: Exception) { DataSource.PEBBLE_QORE_2_BLE }
+
+                list.add(
+                    WorkoutSession(
+                        id = id,
+                        type = type,
+                        startTimeEpochMs = start,
+                        endTimeEpochMs = end,
+                        durationSeconds = duration,
+                        totalDistanceMeters = distance,
+                        totalCaloriesKcal = calories,
+                        avgHeartRateBpm = avgHr,
+                        maxHeartRateBpm = maxHr,
+                        source = src
+                    )
+                )
+            }
+        }
+        list
     }
 
     suspend fun saveWorkout(session: WorkoutSession) = withContext(Dispatchers.IO) {

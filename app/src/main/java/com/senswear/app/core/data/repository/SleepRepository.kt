@@ -5,79 +5,81 @@ import android.database.sqlite.SQLiteDatabase
 import com.senswear.app.core.data.local.SenswearDatabase
 import com.senswear.app.core.domain.model.DataSource
 import com.senswear.app.core.domain.model.SleepSession
-import com.senswear.app.core.domain.model.SleepStageRecord
-import com.senswear.app.core.domain.model.SleepStageType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class SleepRepository(private val dbHelper: SenswearDatabase) {
 
-    suspend fun getLatestSleepSession(): SleepSession = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
-        val startOfNight = now - (8 * 3600 * 1000L + 12 * 60 * 1000L) // 8h 12m ago
-        val endOfNight = now - (30 * 60 * 1000L) // woke up 30m ago
-
-        val durationMinutes = ((endOfNight - startOfNight) / 60000).toInt() // 462 min = 7h 42m
-        val deep = 104 // 1h 44m
-        val rem = 112 // 1h 52m
-        val light = 216 // 3h 36m
-        val awake = 30 // 30m
-
-        val stages = listOf(
-            SleepStageRecord(SleepStageType.AWAKE, startOfNight, startOfNight + (15 * 60000L)),
-            SleepStageRecord(SleepStageType.LIGHT, startOfNight + (15 * 60000L), startOfNight + (65 * 60000L)),
-            SleepStageRecord(SleepStageType.DEEP, startOfNight + (65 * 60000L), startOfNight + (145 * 60000L)),
-            SleepStageRecord(SleepStageType.REM, startOfNight + (145 * 60000L), startOfNight + (195 * 60000L)),
-            SleepStageRecord(SleepStageType.LIGHT, startOfNight + (195 * 60000L), startOfNight + (265 * 60000L)),
-            SleepStageRecord(SleepStageType.DEEP, startOfNight + (265 * 60000L), startOfNight + (295 * 60000L)),
-            SleepStageRecord(SleepStageType.REM, startOfNight + (295 * 60000L), startOfNight + (355 * 60000L)),
-            SleepStageRecord(SleepStageType.LIGHT, startOfNight + (355 * 60000L), startOfNight + (447 * 60000L)),
-            SleepStageRecord(SleepStageType.AWAKE, startOfNight + (447 * 60000L), endOfNight)
+    suspend fun getLatestSleepSession(): SleepSession? = withContext(Dispatchers.IO) {
+        val db = dbHelper.readableDatabase
+        val cursor = db.query(
+            "sleep_sessions",
+            null,
+            null,
+            null,
+            null, null, "start_time DESC", "1"
         )
-
-        SleepSession(
-            id = "sleep_session_recent",
-            startTimeEpochMs = startOfNight,
-            endTimeEpochMs = endOfNight,
-            durationMinutes = durationMinutes,
-            deepMinutes = deep,
-            lightMinutes = light,
-            remMinutes = rem,
-            awakeMinutes = awake,
-            sleepScore = 88,
-            stages = stages,
-            source = DataSource.PEBBLE_QORE_2_BLE
-        )
+        cursor.use {
+            if (it.moveToFirst()) {
+                val id = it.getString(it.getColumnIndexOrThrow("id"))
+                val start = it.getLong(it.getColumnIndexOrThrow("start_time"))
+                val end = it.getLong(it.getColumnIndexOrThrow("end_time"))
+                val dur = it.getInt(it.getColumnIndexOrThrow("duration_minutes"))
+                val deep = it.getInt(it.getColumnIndexOrThrow("deep_minutes"))
+                val light = it.getInt(it.getColumnIndexOrThrow("light_minutes"))
+                val rem = it.getInt(it.getColumnIndexOrThrow("rem_minutes"))
+                val awake = it.getInt(it.getColumnIndexOrThrow("awake_minutes"))
+                val score = it.getInt(it.getColumnIndexOrThrow("sleep_score"))
+                val src = try { DataSource.valueOf(it.getString(it.getColumnIndexOrThrow("source"))) } catch (e: Exception) { DataSource.PEBBLE_QORE_2_BLE }
+                SleepSession(id, start, end, dur, deep, light, rem, awake, score, emptyList(), src)
+            } else null
+        }
     }
 
     suspend fun getRecentSleepSessions(days: Int = 7): List<SleepSession> = withContext(Dispatchers.IO) {
-        val now = System.currentTimeMillis()
+        val db = dbHelper.readableDatabase
+        val cutoff = System.currentTimeMillis() - (days * 86400 * 1000L)
+        val cursor = db.query(
+            "sleep_sessions",
+            null,
+            "start_time >= ?",
+            arrayOf(cutoff.toString()),
+            null, null, "start_time DESC"
+        )
         val list = mutableListOf<SleepSession>()
-        for (i in 0 until days) {
-            val start = now - (i + 1) * 86400000L + (23 * 3600000L) // 11:00 PM
-            val end = start + (7 * 3600000L + 40 * 60000L) // 6:40 AM
-            val dur = 460 - (i * 12)
-            val deep = (dur * 0.22).toInt()
-            val rem = (dur * 0.24).toInt()
-            val awake = (dur * 0.06).toInt()
-            val light = dur - deep - rem - awake
-            val score = (89 - (i * 2)).coerceIn(65, 96)
-
-            list.add(
-                SleepSession(
-                    id = "sleep_day_$i",
-                    startTimeEpochMs = start,
-                    endTimeEpochMs = end,
-                    durationMinutes = dur,
-                    deepMinutes = deep,
-                    lightMinutes = light,
-                    remMinutes = rem,
-                    awakeMinutes = awake,
-                    sleepScore = score,
-                    source = DataSource.PEBBLE_QORE_2_BLE
-                )
-            )
+        cursor.use {
+            while (it.moveToNext()) {
+                val id = it.getString(it.getColumnIndexOrThrow("id"))
+                val start = it.getLong(it.getColumnIndexOrThrow("start_time"))
+                val end = it.getLong(it.getColumnIndexOrThrow("end_time"))
+                val dur = it.getInt(it.getColumnIndexOrThrow("duration_minutes"))
+                val deep = it.getInt(it.getColumnIndexOrThrow("deep_minutes"))
+                val light = it.getInt(it.getColumnIndexOrThrow("light_minutes"))
+                val rem = it.getInt(it.getColumnIndexOrThrow("rem_minutes"))
+                val awake = it.getInt(it.getColumnIndexOrThrow("awake_minutes"))
+                val score = it.getInt(it.getColumnIndexOrThrow("sleep_score"))
+                val src = try { DataSource.valueOf(it.getString(it.getColumnIndexOrThrow("source"))) } catch (e: Exception) { DataSource.PEBBLE_QORE_2_BLE }
+                list.add(SleepSession(id, start, end, dur, deep, light, rem, awake, score, emptyList(), src))
+            }
         }
         list
+    }
+
+    suspend fun saveSleepSession(session: SleepSession) = withContext(Dispatchers.IO) {
+        val db = dbHelper.writableDatabase
+        val values = ContentValues().apply {
+            put("id", session.id)
+            put("start_time", session.startTimeEpochMs)
+            put("end_time", session.endTimeEpochMs)
+            put("duration_minutes", session.durationMinutes)
+            put("deep_minutes", session.deepMinutes)
+            put("light_minutes", session.lightMinutes)
+            put("rem_minutes", session.remMinutes)
+            put("awake_minutes", session.awakeMinutes)
+            put("sleep_score", session.sleepScore)
+            put("source", session.source.name)
+        }
+        db.insertWithOnConflict("sleep_sessions", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        dbHelper.notifyChanged()
     }
 }

@@ -1,12 +1,12 @@
 package com.senswear.app.core.domain.model
 
-enum class ConnectionState(val label: String) {
-    DISCONNECTED("Disconnected"),
-    SCANNING("Scanning for Qore 2..."),
-    CONNECTING("Connecting..."),
-    CONNECTED("Connected"),
-    SYNCING("Syncing Health Data..."),
-    ERROR("Connection Error")
+enum class ConnectionState {
+    DISCONNECTED,
+    CONNECTING,
+    CONNECTED,
+    SCANNING,
+    SYNCING,
+    ERROR
 }
 
 data class BatteryState(
@@ -18,14 +18,14 @@ data class BatteryState(
 
 data class WearableDevice(
     val id: String,
-    val name: String = "Pebble Qore 2",
+    val name: String,
     val macAddress: String,
-    val firmwareVersion: String = "v2.4.1-rc3",
-    val modelNumber: String = "PB-Q2-BLACK",
-    val hardwareRevision: String = "Rev. C",
+    val firmwareVersion: String? = null,
+    val modelNumber: String? = null,
+    val hardwareRevision: String? = null,
     val rssi: Int = -62,
     val connectionState: ConnectionState = ConnectionState.DISCONNECTED,
-    val batteryState: BatteryState = BatteryState(percentage = 85),
+    val batteryState: BatteryState? = null,
     val lastSyncEpochMs: Long = 0L,
     val isPaired: Boolean = false
 )

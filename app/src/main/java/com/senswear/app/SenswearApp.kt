@@ -1,7 +1,6 @@
 package com.senswear.app
 
 import android.app.Application
-import com.senswear.app.core.ble.UniversalBleConnector
 import com.senswear.app.core.ble.WearableConnector
 import com.senswear.app.core.data.local.SenswearDatabase
 import com.senswear.app.core.data.repository.AchievementRepository
@@ -12,6 +11,7 @@ import com.senswear.app.core.data.repository.InsightsRepository
 import com.senswear.app.core.data.repository.SleepRepository
 import com.senswear.app.core.data.repository.WorkoutRepository
 import com.senswear.app.core.healthconnect.HealthConnectManager
+import com.senswear.app.core.wearable.WearableManager
 
 class SenswearApp : Application() {
 
@@ -19,6 +19,9 @@ class SenswearApp : Application() {
         private set
 
     lateinit var wearableConnector: WearableConnector
+        private set
+
+    lateinit var wearableManager: WearableManager
         private set
 
     lateinit var healthConnectManager: HealthConnectManager
@@ -52,9 +55,10 @@ class SenswearApp : Application() {
         database = SenswearDatabase.getInstance(this)
         healthConnectManager = HealthConnectManager(this)
 
-        // Universal Wearable Engine:
-        // Connects to Apple Watch, Samsung Galaxy Watch, Whoop 4.0, Pebble Qore 2, Garmin, Fitbit, etc.
-        wearableConnector = UniversalBleConnector(this)
+        // Production Truth: Universal Wearable Architecture
+        // Uses WearableManager with capability registry and vendor adapters
+        wearableManager = WearableManager(this, healthConnectManager)
+        wearableConnector = wearableManager
 
         activityRepository = ActivityRepository(database)
         healthRepository = HealthRepository(database)

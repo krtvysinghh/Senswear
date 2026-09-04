@@ -54,9 +54,9 @@ class HomeViewModel(
                 val activity = activityRepository.getTodayActivity()
                 val sleep = sleepRepository.getLatestSleepSession()
                 val insights = insightsRepository.generateInsights(
-                    stepGoalPct = activity.stepProgressPercent,
-                    sleepMinutes = sleep.durationMinutes,
-                    restingHr = 61
+                    stepGoalPct = activity?.stepProgressPercent ?: 0f,
+                    sleepMinutes = sleep?.durationMinutes ?: 0,
+                    restingHr = 60
                 )
                 _uiState.value = _uiState.value.copy(
                     dailyActivity = activity,

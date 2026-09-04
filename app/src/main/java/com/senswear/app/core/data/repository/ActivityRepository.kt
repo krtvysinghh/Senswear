@@ -10,19 +10,9 @@ import kotlinx.coroutines.withContext
 
 class ActivityRepository(private val dbHelper: SenswearDatabase) {
 
-    suspend fun getTodayActivity(): DailyActivity = withContext(Dispatchers.IO) {
+    suspend fun getTodayActivity(): DailyActivity? = withContext(Dispatchers.IO) {
         val todayEpoch = System.currentTimeMillis() / (1000 * 60 * 60 * 24)
-        getActivityForDay(todayEpoch) ?: DailyActivity(
-            epochDay = todayEpoch,
-            steps = 8421,
-            stepGoal = 10000,
-            distanceMeters = 6400.0,
-            activeCaloriesKcal = 342,
-            totalCaloriesKcal = 1942,
-            activeMinutes = 48,
-            hourlySteps = listOf(0, 0, 0, 0, 0, 0, 120, 480, 1200, 850, 620, 940, 1450, 890, 720, 1151, 0, 0, 0, 0, 0, 0, 0, 0),
-            source = DataSource.PEBBLE_QORE_2_BLE
-        )
+        getActivityForDay(todayEpoch)
     }
 
     suspend fun getActivityForDay(epochDay: Long): DailyActivity? = withContext(Dispatchers.IO) {
@@ -91,32 +81,11 @@ class ActivityRepository(private val dbHelper: SenswearDatabase) {
         val list = mutableListOf<DailyActivity>()
         for (i in 0 until daysCount) {
             val day = currentEpoch - i
-            val act = getActivityForDay(day) ?: generateFallbackDay(day, i)
-            list.add(act)
+            val act = getActivityForDay(day)
+            if (act != null) {
+                list.add(act)
+            }
         }
         list
-    }
-
-    private fun generateFallbackDay(epochDay: Long, daysAgo: Int): DailyActivity {
-        val stepBase = when (daysAgo % 7) {
-            0 -> 8421
-            1 -> 10450
-            2 -> 9120
-            3 -> 7890
-            4 -> 11300
-            5 -> 6400
-            else -> 9850
-        }
-        return DailyActivity(
-            epochDay = epochDay,
-            steps = stepBase,
-            stepGoal = 10000,
-            distanceMeters = stepBase * 0.76,
-            activeCaloriesKcal = (stepBase * 0.042).toInt(),
-            totalCaloriesKcal = 1600 + (stepBase * 0.042).toInt(),
-            activeMinutes = (stepBase / 110).toInt(),
-            hourlySteps = List(24) { h -> if (h in 8..20) (stepBase / 13) else 0 },
-            source = DataSource.PEBBLE_QORE_2_BLE
-        )
     }
 }
