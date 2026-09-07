@@ -42,7 +42,7 @@ Repo: https://github.com/krtvysinghh/Senswear.git
 Builds:
   - versionName: '1.1.0'
     versionCode: 2
-    commit: d38838b
+    commit: v1.1.0
     subdir: app
     gradle:
       - assembleRelease
