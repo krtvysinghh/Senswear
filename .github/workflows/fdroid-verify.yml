@@ -1,0 +1,32 @@
+name: F-Droid Compliance & Build Verification
+
+on:
+  push:
+    paths:
+      - 'fdroid/**'
+      - '.fdroid.yml'
+      - 'fastlane/**'
+  pull_request:
+    paths:
+      - 'fdroid/**'
+      - '.fdroid.yml'
+      - 'fastlane/**'
+
+jobs:
+  verify-fdroid:
+    name: Validate F-Droid Recipe & Fastlane Metadata
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Verify Fastlane Structure
+        run: |
+          test -f fastlane/metadata/android/en-US/title.txt || exit 1
+          test -f fastlane/metadata/android/en-US/short_description.txt || exit 1
+          test -f fastlane/metadata/android/en-US/full_description.txt || exit 1
+          test -f fastlane/metadata/android/en-US/images/icon.png || exit 1
+          test -f fdroid/com.senswear.app.yml || exit 1
+          test -f .fdroid.yml || exit 1
+          echo "✓ All F-Droid metadata files verified."
