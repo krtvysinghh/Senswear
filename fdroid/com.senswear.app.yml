@@ -1,0 +1,53 @@
+Categories:
+  - Health & Fitness
+  - Sports & Health
+License: Apache-2.0
+AuthorName: Kartavya Singh
+AuthorEmail: kartxvyaa@gmail.com
+SourceCode: https://github.com/krtvysinghh/Senswear
+IssueTracker: https://github.com/krtvysinghh/Senswear/issues
+Changelog: https://github.com/krtvysinghh/Senswear/releases
+
+Summary: Privacy-first Universal Wearable & Biometrics Platform
+Description: |-
+  Senswear is an open-source, privacy-first universal wearable and health biometrics
+  companion for Android.
+
+  Designed with an Apple Native Liquid Glass aesthetic and Material 3 Adaptive layouts,
+  Senswear bridges raw physical Bluetooth Low Energy (BLE) sensor streams with Google
+  Health Connect and vendor cloud APIs—normalizing disparate biometric protocols into a
+  single, verifiable domain model without cloud lock-in, advertising trackers, or
+  synthetic data fabrication.
+
+  Key Capabilities:
+  * Universal Wearable Support: Direct BLE GATT Central support for Pebble Qore 2,
+    Polar H10 / Verity Sense, Coros, Garmin HRM straps, Apple Watch broadcast,
+    Samsung Galaxy Watch (Health Connect), and Google Pixel Watch.
+  * Liquid Glass Design System: Frosted glass cards with specular highlight edge
+    refraction, obsidian foundations, and dynamic HUD status islands.
+  * 120 FPS Real-Time Cardiac Waveform: Hardware-accelerated ECG/PPG wave canvas
+    synchronized to live pulse telemetry with zero recomposition overhead.
+  * Physiological Science Engine: Frequency-domain HRV (LF/HF autonomic balance),
+    motion-artifact rejection filtering, circadian slow-wave sleep resting heart rate,
+    and temperature baseline anomaly detection.
+  * Multi-Source Reconciliation: Linear clock skew estimation, authoritative sensor
+    hierarchy arbitration, and automated sleep boundary stitching.
+  * 100% Privacy & Local Data Sovereignty: Zero analytics, zero advertising SDKs,
+    encrypted on-device SQLite storage, biometric app lock, and single-click
+    GPX/FIT/CSV data export.
+
+RepoType: git
+Repo: https://github.com/krtvysinghh/Senswear.git
+
+Builds:
+  - versionName: '1.1.0'
+    versionCode: 2
+    commit: d38838b
+    subdir: app
+    gradle:
+      - assembleRelease
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+CurrentVersion: '1.1.0'
+CurrentVersionCode: 2

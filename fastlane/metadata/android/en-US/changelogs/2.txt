@@ -1,0 +1,6 @@
+• Initial public release of Senswear Universal Wearable Platform.
+• Direct BLE GATT Central engine with serial GATT queue and 512-byte MTU negotiation.
+• Apple Native Liquid Glass design system with Material 3 Adaptive tablet/phone layouts.
+• 50 production architectural pillars across biometrics, provenance tracking, and security hardening.
+• Google Health Connect & OAuth2 Cloud Sync plugins (Whoop & Garmin Connect).
+• 100% FLOSS, zero-telemetry, on-device encrypted SQLite database.

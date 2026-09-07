@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/krtvysinghh/Senswear/releases/latest"><img src="https://img.shields.io/github/v/release/krtvysinghh/Senswear?color=00F0FF&label=Release&logo=github" alt="Latest Release" /></a>
+  <a href="fdroid/com.senswear.app.yml"><img src="https://img.shields.io/badge/F--Droid-Ready%20for%20Inclusion-00C853?logo=f-droid&logoColor=white" alt="F-Droid" /></a>
   <img src="https://img.shields.io/badge/Platform-Android%208.0%2B%20(API%2026%E2%80%9336)-3DDC84?logo=android&logoColor=white" alt="Platform" />
   <img src="https://img.shields.io/badge/Kotlin-2.3.20-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin" />
   <img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20%2F%20Material%203%20Adaptive-4285F4?logo=jetpackcompose&logoColor=white" alt="Compose" />
@@ -31,6 +32,35 @@
 2. **Immutable Data Provenance**: Every metric preserves its complete origin trail (canonical value, metric name, unit, timestamp, source device MAC, vendor, transport protocol, data quality rating, and confidence score).
 3. **Pluggable Adapter Architecture**: Vendor protocols are isolated in modular `WearableAdapter` implementations rather than tangled in conditional UI logic.
 4. **Local Data Sovereignty**: 100% on-device encrypted SQLite/Room database with zero cloud requirement, one-tap JSON/CSV/GPX/FIT data export, and full local purge controls.
+
+---
+
+## 📲 Download & Installation
+
+### Option 1: F-Droid / Fastlane (FLOSS Distribution)
+Senswear is fully prepared for official **F-Droid** inclusion with complete Fastlane metadata and reproducible build recipes:
+* **F-Droid Package ID**: `com.senswear.app`
+* **Recipe Specification**: [`fdroid/com.senswear.app.yml`](fdroid/com.senswear.app.yml) / [`.fdroid.yml`](.fdroid.yml)
+* **Fastlane Metadata**: [`fastlane/metadata/android/en-US/`](fastlane/metadata/android/en-US/)
+
+### Option 2: Direct GitHub Release (Signed APK)
+Download the latest minified production APK directly from [GitHub Releases](https://github.com/krtvysinghh/Senswear/releases/latest):
+* **Release Artifact**: `Senswear-v1.1.0.apk` (2.6 MB optimized with R8/ProGuard)
+* **Minimum Android Version**: Android 8.0 (API Level 26)
+* **Target Android Version**: Android 16 (API Level 36)
+
+### Option 3: Build From Source
+```bash
+# Clone the repository
+git clone https://github.com/krtvysinghh/Senswear.git
+cd Senswear
+
+# Run the full automated test suite (67 passing unit tests)
+./gradlew testDebugUnitTest
+
+# Assemble production minified APK
+./gradlew assembleRelease
+```
 
 ---
 
@@ -170,21 +200,6 @@ flowchart TD
 48. **Virtual Mock GATT Server Testbed (`MockGattServerTestBed`)**: Simulates hardware disconnections, latency, and packet loss in CI.
 49. **Comprehensive Test Suite**: 67 automated unit tests covering 100% of mathematical and business logic.
 50. **Minified Release Hardening**: Fully optimized R8 release producing a 2.6 MB binary.
-
----
-
-## 🛠️ Verification & Build Commands
-
-```bash
-# Run 100% of automated unit tests (67/67 passing)
-./gradlew testDebugUnitTest
-
-# Build debug APK
-./gradlew assembleDebug
-
-# Build R8-minified release APK (2.6 MB)
-./gradlew assembleRelease
-```
 
 ---
 
